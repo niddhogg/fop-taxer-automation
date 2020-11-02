@@ -16,3 +16,7 @@
 						
 Проект є безкоштовним для використання.				
 Весь код є у вільному доступі
+
+
+Посилання на таблицю
+https://docs.google.com/spreadsheets/d/1ZKLHFfQ1fY-lGlIdk8B5PWbYPWJtPu4lZD-cVFZ9i74
