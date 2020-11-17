@@ -179,15 +179,15 @@ function getDataFromString(msg, template, replaceDots) {
 
 // get existing operations inputted in taxer
 // used to avoid duplicate entries
-function taxerGetOperations(user) {
+function taxerGetOperations(user, bank) {
   var operations = new Array();
-  taxerGetOperationsPagination(user, 1, operations);
+  taxerGetOperationsPagination(user, 1, operations, bank);
   
   return operations;
 }
 
 // get operation, read all pages
-function taxerGetOperationsPagination(user, page, operations) {
+function taxerGetOperationsPagination(user, page, operations, bank) {
   // get user id
   var id = CacheService.getUserCache().get('taxer_auth_id_' + user);
   
@@ -217,7 +217,12 @@ function taxerGetOperationsPagination(user, page, operations) {
     if (type == "CurrencyExchange") {
       // 1 for uah amount
       // 0 for usd amount..
-      content = operation["contents"][1];
+      if (bank == "Monobank") {
+        // monobank should be based on USD amount
+        content = operation["contents"][0];
+      } else {
+        content = operation["contents"][1];
+      }
     } else {
       content = operation["contents"][0];
     }
@@ -264,7 +269,7 @@ function taxerGetOperationsPagination(user, page, operations) {
   var total_pages = obj.paginator.totalPages;
   if (page < total_pages) {
     var new_page = page + 1;
-    taxerGetOperationsPagination(user, new_page, operations);
+    taxerGetOperationsPagination(user, new_page, operations, bank);
   }
   
   
@@ -637,7 +642,7 @@ function taxerImportData() {
   // ################################################################################
   
   // get current inputted operations in taxer
-  var operations = taxerGetOperations(user);
+  var operations = taxerGetOperations(user, bank);
   
   // okay now we need to get rid of transactions that are already present in taxer
   for (var i = 0; i < import_ops.length; i++) {
