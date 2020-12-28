@@ -497,6 +497,9 @@ function taxerImportData() {
     }
     
     var raw = values[index];
+    if (raw == null) {
+      continue;
+    }
     
     var currency = raw[col_currency];
     var date = raw[col_date];
@@ -558,6 +561,14 @@ function taxerImportData() {
         }
         
         if (comment_lower.indexOf("інвойс") != -1) {
+          found = true;
+        }
+
+        if (comment_lower.indexOf("експортної виручки") != -1) {
+          found = true;
+        }
+
+        if (comment_lower.indexOf("TURBO ROCKET LTD") != -1) {
           found = true;
         }
         
@@ -760,7 +771,6 @@ function taxerImportData() {
   }
   
 }
-
 
 
 
