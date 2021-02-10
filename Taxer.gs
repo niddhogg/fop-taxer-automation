@@ -353,9 +353,13 @@ function taxerImportData() {
   // okay now we need to know accounts number
   var uah_account = -1;
   var usd_account = -1;
+  var eur_account = -1;
+  var rub_account = -1;
   
   var max_uah = -1;
   var max_usd = -1;
+  var max_eur = -1;
+  var max_rub = -1;
   
   var accounts = obj.accounts;
   
@@ -380,6 +384,18 @@ function taxerImportData() {
           max_usd = balance;
           continue;
         }
+      } else if (currency == "EUR") {
+        if (balance > max_usd) {
+          eur_account = id;
+          max_eur = balance;
+          continue;
+        }
+      } else if (currency == "RUB") {
+        if (balance > max_usd) {
+          rub_account = id;
+          max_rub = balance;
+          continue;
+        }
       }
     }
   }
@@ -393,6 +409,16 @@ function taxerImportData() {
   if (usd_account == -1) {
     // create uah account
     usd_account = taxerCreateFinanceAccount("USD", user);
+  }
+
+  if (eur_account == -1) {
+    // create uah account
+    eur_account = taxerCreateFinanceAccount("EUR", user);
+  }
+
+  if (rub_account == -1) {
+    // create uah account
+    rub_account = taxerCreateFinanceAccount("RUB", user);
   }
   
   // ################################################################################
@@ -545,7 +571,7 @@ function taxerImportData() {
       new_op.amount = amount;
       
       // filter
-      if (currency == "USD") {
+      if ((currency == "USD") || (currency == "EUR") || (currency == "RUB")) {
         // only for invoiced amounts
         // because it may be return of money
         // or transfer between your own usd accounts
@@ -571,25 +597,52 @@ function taxerImportData() {
         if (comment_lower.indexOf("TURBO ROCKET LTD") != -1) {
           found = true;
         }
+
+        if (comment_lower.indexOf("згідно договору") != -1) {
+          found = true;
+        }
         
         if (!found) {
           continue;
         }
         
+        //
         new_op.type = "income";
+
+        // income account 
+        // what if money comes to UAH?
+        if (currency == "USD") {
+          new_op.account = usd_account;
+        } else if (currency == "EUR") {
+          new_op.account = eur_account;
+        } else if (currency == "RUB") {
+          new_op.account = rub_account;
+        }
+        
+
       } else {
+        //
+        Logger.log(comment);
+
         // exchange operation now
         var data = {};
         try {
           data = getDataFromString(comment, exchange_pattern);
         } catch (error) {
+          Logger.log("fail");
           ui.alert("Помилка","Не вдалось отримати дані обміну валюти. Перевірте, що банк вказаний вірно. Якщо ви додавали банк власноруч, можливо значення exchange_pattern помилкове.", ui.ButtonSet.OK);
           return;
         }
         
         var usd = data.usd;
         var exchange_rate = data.exchange_rate;
-       
+        var exchange_currency = data.currency;
+
+        // if not provided -> it's USD
+        if (exchange_currency == null) {
+          exchange_currency = "USD";
+        }
+
         if (bank == "Monobank") {
           // simple as that...
           usd = amount;
@@ -608,8 +661,20 @@ function taxerImportData() {
         }
         
         // exchange rate may be like 2832.0 for ukrsib
-        if (exchange_rate > 1000) {
-          exchange_rate = exchange_rate / 100;
+        if (bank == "UkrSibbank") {
+          if (exchange_currency == "RUB") {
+            exchange_rate = exchange_rate / 10;
+          } else {
+            exchange_rate = exchange_rate / 100;
+          }
+        }
+
+        if (exchange_currency == "USD") {
+          new_op.account = usd_account;
+        } else if (exchange_currency == "EUR") {
+          new_op.account = eur_account;
+        } else if (exchange_currency == "RUB") {
+          new_op.account = rub_account;
         }
         
         new_op.type = "exchange";
@@ -710,6 +775,7 @@ function taxerImportData() {
   }
   
   // add to taxer
+  
   for (var i = 0; i < import_ops.length; i++) {
     // get info
     var import_op = import_ops[i];
@@ -719,7 +785,7 @@ function taxerImportData() {
       
       // import...
       if (import_op.type == "income") {
-        var response = taxerAddIncome(user, import_op.timestamp, usd_account, import_op.amount, comment);
+        var response = taxerAddIncome(user, import_op.timestamp, import_op.account, import_op.amount, comment);
         if (200 == response.getResponseCode()) {
           // added
           log("added income op");
@@ -735,7 +801,7 @@ function taxerImportData() {
         }
       } else {
         //
-        var response = taxerAddExchange(user, import_op.timestamp, usd_account, uah_account, import_op.usd, import_op.exchange_rate, comment);
+        var response = taxerAddExchange(user, import_op.timestamp, import_op.account, uah_account, import_op.usd, import_op.exchange_rate, comment);
         if (200 == response.getResponseCode()) {
           // added
           log("added exchange op");
@@ -756,6 +822,7 @@ function taxerImportData() {
       
     }
   }
+  
   
   // clear import...
   var dest = ss.getSheetByName("Import");
