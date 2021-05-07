@@ -258,7 +258,7 @@ function taxerGetOperationsPagination(user, page, operations, bank) {
     
     new_operation.enabled = true;
     
-    log(new_operation);
+    //log(new_operation);
     
     // add to array
     operations.push(new_operation);
@@ -328,7 +328,11 @@ function taxerImportData() {
   var user = dest.getRange("C5").getValue();
   var password = dest.getRange("C6").getValue();
   var bank = dest.getRange("C7").getValue();
-  
+
+  // get indicators
+  var income_indicators = getIncomeIndicators();
+  var ignore_indicators = getIgnoreIndicators();
+
   // todo: output good errors inside google sheet
   taxer_auth(user, password);
   
@@ -519,7 +523,7 @@ function taxerImportData() {
     var index = i;
     if (ordering == "new_first") {
       index = last_row - i + 1;
-      Logger.log("index: " + index);
+      //Logger.log("index: " + index);
     }
     
     var raw = values[index];
@@ -527,10 +531,28 @@ function taxerImportData() {
       continue;
     }
     
+    // get data
     var currency = raw[col_currency];
     var date = raw[col_date];
     var amount = raw[col_amount];
     var comment = raw[col_comment];
+
+    var comment_lower = comment.toLowerCase();
+
+    // check ignore...
+    var ignore = false;
+    ignore_indicators.forEach(function(entry) {
+        //Logger.log(entry);
+        if (comment_lower.indexOf(entry) != -1) {
+          ignore = true;
+        }
+    });
+
+    if (ignore) {
+      Logger.log("ignore : " + comment);
+      continue;
+    }
+
     
     if (currency != "") {
       // new operation
@@ -575,32 +597,14 @@ function taxerImportData() {
         // only for invoiced amounts
         // because it may be return of money
         // or transfer between your own usd accounts
-        var comment_lower = comment.toLowerCase();
         var found = false;
-        
-        if (comment_lower.indexOf("invoice") != -1) {
-          found = true;
-        }
-        
-        if (comment_lower.indexOf("инвойс") != -1) {
-          found = true;
-        }
-        
-        if (comment_lower.indexOf("інвойс") != -1) {
-          found = true;
-        }
-
-        if (comment_lower.indexOf("експортної виручки") != -1) {
-          found = true;
-        }
-
-        if (comment_lower.indexOf("TURBO ROCKET LTD") != -1) {
-          found = true;
-        }
-
-        if (comment_lower.indexOf("згідно договору") != -1) {
-          found = true;
-        }
+      
+        income_indicators.forEach(function(entry) {
+            Logger.log(entry);
+            if (comment_lower.indexOf(entry) != -1) {
+              found = true;
+            }
+        });
         
         if (!found) {
           continue;
@@ -624,63 +628,89 @@ function taxerImportData() {
         //
         Logger.log(comment);
 
-        // exchange operation now
-        var data = {};
-        try {
-          data = getDataFromString(comment, exchange_pattern);
-        } catch (error) {
-          Logger.log("fail");
-          ui.alert("Помилка","Не вдалось отримати дані обміну валюти. Перевірте, що банк вказаний вірно. Якщо ви додавали банк власноруч, можливо значення exchange_pattern помилкове.", ui.ButtonSet.OK);
-          return;
-        }
-        
-        var usd = data.usd;
-        var exchange_rate = data.exchange_rate;
-        var exchange_currency = data.currency;
+        // it may be income transaction!
+        var found = false;
+  
+        income_indicators.forEach(function(entry) {
+            //Logger.log(comment_lower);
+            //Logger.log(entry);
+            if (comment_lower.indexOf(entry) != -1) {
+              found = true;
+            }
+        });
 
-        // if not provided -> it's USD
-        if (exchange_currency == null) {
-          exchange_currency = "USD";
-        }
+        if (found) {
+          // uah incomes
+          Logger.log("INCOME OP FOUND IN UAH!");
+            
+          // UAH income operation
+          new_op.type = "income";
+          new_op.account = uah_account;
 
-        if (bank == "Monobank") {
-          // simple as that...
-          usd = amount;
-        }
-        
-        if (usd == null) {
-          continue;
-        }
-        
-        // get exchange rate
-        var exchange_rate = Number(data.exchange_rate);
-        if (Number.isNaN(exchange_rate)) {
-          // some error...
-          ui.alert("Помилка","Не вдалось отримати дані обміну валюти. Перевірте, що банк вказаний вірно. Якщо ви додавали банк власноруч, можливо значення exchange_pattern помилкове.", ui.ButtonSet.OK);
-          return;
-        }
-        
-        // exchange rate may be like 2832.0 for ukrsib
-        if (bank == "UkrSibbank") {
-          if (exchange_currency == "RUB") {
-            exchange_rate = exchange_rate / 10;
-          } else {
-            exchange_rate = exchange_rate / 100;
+        } else {
+          // try exchange
+          // exchange operation now
+          var data = {};
+          try {
+            data = getDataFromString(comment, exchange_pattern);
+          } catch (error) {
+
+              // could not find income op...
+              Logger.log("fail");
+              ui.alert("Помилка","Не вдалось отримати дані обміну валюти. Перевірте, що банк вказаний вірно. Якщо ви додавали банк власноруч, можливо значення exchange_pattern помилкове. Також можливо, що у вас є гривнений дохід, тоді перевірте лист Extra, колонку Income indicators, і впишіть ваш індикатор доходу відповідно до коментаря транзакції (наприклад, слово Дохід). Або ж додайте до Ignore indicators для того щоб проігнорувати транзакцію (наприклад, слово Повернення, тощо).", ui.ButtonSet.OK);
+              return;
+
           }
-        }
+          
+          var usd = data.usd;
+          var exchange_rate = data.exchange_rate;
+          var exchange_currency = data.currency;
 
-        if (exchange_currency == "USD") {
-          new_op.account = usd_account;
-        } else if (exchange_currency == "EUR") {
-          new_op.account = eur_account;
-        } else if (exchange_currency == "RUB") {
-          new_op.account = rub_account;
+          // if not provided -> it's USD
+          if (exchange_currency == null) {
+            exchange_currency = "USD";
+          }
+
+          if (bank == "Monobank") {
+            // simple as that...
+            usd = amount;
+          }
+          
+          if (usd == null) {
+            continue;
+          }
+          
+          // get exchange rate
+          var exchange_rate = Number(data.exchange_rate);
+          if (Number.isNaN(exchange_rate)) {
+            // some error...
+            ui.alert("Помилка","Не вдалось отримати дані обміну валюти. Перевірте, що банк вказаний вірно. Якщо ви додавали банк власноруч, можливо значення exchange_pattern помилкове.", ui.ButtonSet.OK);
+            return;
+          }
+          
+          // exchange rate may be like 2832.0 for ukrsib
+          if (bank == "UkrSibbank") {
+            if (exchange_currency == "RUB") {
+              exchange_rate = exchange_rate / 10;
+            } else {
+              exchange_rate = exchange_rate / 100;
+            }
+          }
+
+          if (exchange_currency == "USD") {
+            new_op.account = usd_account;
+          } else if (exchange_currency == "EUR") {
+            new_op.account = eur_account;
+          } else if (exchange_currency == "RUB") {
+            new_op.account = rub_account;
+          }
+          
+          new_op.type = "exchange";
+          new_op.exchange_rate = exchange_rate;
+          new_op.usd = usd;
+          new_op.exchange_currency = exchange_currency;
+
         }
-        
-        new_op.type = "exchange";
-        new_op.exchange_rate = exchange_rate;
-        new_op.usd = usd;
-        
       }
       
       // process date
@@ -695,6 +725,7 @@ function taxerImportData() {
         new_op.month = month;
         new_op.day = day;
         new_op.enabled = true;
+        new_op.readable_date = date;
         
         // timestamp date
         var full_date = new Date(year, month, day, 15, 0, 0);
@@ -769,7 +800,7 @@ function taxerImportData() {
   for (var i = 0; i < import_ops.length; i++) {
     var import_op = import_ops[i];
     if (import_op.enabled) {
-      log(import_op);
+      //log(import_op);
       transactions_to_add++;
     }
   }
@@ -828,10 +859,32 @@ function taxerImportData() {
   var dest = ss.getSheetByName("Import");
   var range = dest.getDataRange();
   range.clearContent();
+
+
+  //
+  var text = "Додані транзакції: ";
+
+  for (var i = 0; i < import_ops.length; i++) {
+    var import_op = import_ops[i];
+    if (import_op.enabled) {
+      text += "\n<";
+      //Logger.log(import_op);
+      if (import_op.type == "income") {
+        text += "Дохід " + import_op.amount + " " + new_op.currency;
+      } else {
+        text += "Обмін валют " + import_op.usd + " " + import_op.exchange_currency + " на " + import_op.amount + " UAH, курс " + import_op.exchange_rate;
+      }
+
+      text += " - " + import_op.readable_date;
+      text += ">";
+    }
+  }
+
+  Logger.log(text);
   
   // show result
   if (transactions_to_add > 0) {
-    ui.alert("Taxer","Всі операції успішно імпортовано", ui.ButtonSet.OK);
+    ui.alert("Taxer","Всі операції успішно імпортовано.\n" + text, ui.ButtonSet.OK);
 
   } else {
     ui.alert("Taxer","Транкзації вже були синхронізовані, жодної операції не було додано", ui.ButtonSet.OK);
@@ -840,6 +893,47 @@ function taxerImportData() {
 }
 
 
+function getIncomeIndicators() {
+  // read data
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dest = ss.getSheetByName("Extra");
+
+  var income_indicators = dest.getRange("IncomeIndicators").getValues();
+  income_indicators = income_indicators.flat();
+
+  var income_indicators = income_indicators.filter(function (el) {
+    return el != "";
+  });
+
+  for (var i = 0, L=income_indicators.length ; i < L; i++) {
+    income_indicators[i]=income_indicators[i].toLowerCase();
+  }
+
+  //Logger.log(income_indicators);
+
+  return income_indicators;
+}
+
+function getIgnoreIndicators() {
+  // read data
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dest = ss.getSheetByName("Extra");
+
+  var ignore_indicators = dest.getRange("IgnoreIndicators").getValues();
+  ignore_indicators = ignore_indicators.flat();
+
+  var ignore_indicators = ignore_indicators.filter(function (el) {
+    return el != "";
+  });
+
+  for (var i = 0, L=ignore_indicators.length ; i < L; i++) {
+    ignore_indicators[i]=ignore_indicators[i].toLowerCase();
+  }
+
+  //Logger.log(ignore_indicators);
+
+  return ignore_indicators;
+}
 
 
 
