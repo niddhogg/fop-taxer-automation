@@ -196,6 +196,10 @@ function taxerGetOperationsPagination(user, page, operations, bank) {
   params_json["userId"] = parseInt(id);
   params_json["pageNumber"] = page;
   params_json["filters"] = [];
+
+  var sorting = {};
+  sorting["date"] = "ASC";
+  params_json["sorting"] = sorting;
   
   var url = "https://taxer.ua/api/finances/operation/load?lang=uk"
   var response = doTaxerRequest(url, params_json, user);
@@ -264,6 +268,8 @@ function taxerGetOperationsPagination(user, page, operations, bank) {
     operations.push(new_operation);
     
   }
+
+  //Logger.log(obj);
   
   // move on with next pages if any
   var total_pages = obj.paginator.totalPages;
