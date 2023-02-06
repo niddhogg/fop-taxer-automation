@@ -874,7 +874,7 @@ function taxerImportData() {
   // clear import...
   var dest = ss.getSheetByName("Import");
   var range = dest.getDataRange();
-  //range.clearContent();
+  range.clearContent();
 
 
   //
