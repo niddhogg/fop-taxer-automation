@@ -21,10 +21,15 @@ function taxerAddIncome(user, dateFormatted, accountId, total, comment) {
   params_json["operation"]["account"] = {};
   params_json["operation"]["account"]["currency"] = "USD";
   params_json["operation"]["account"]["id"] = accountId;
+
+  //
+  var params_result_json = {};
+  params_result_json["operations"] = [params_json];
   
   // url
   var url = "https://taxer.ua/api/finances/operation/create";
-  var response = doTaxerRequest(url, params_json, user);
+  
+  var response = doTaxerRequest(url, params_result_json, user);
   
   // return response
   return response;
@@ -56,9 +61,13 @@ function taxerAddExchange(user, dateFormatted, outgoAccountId, incomeAccountId, 
   params_json["operation"]["incomeAccount"]["currency"] = "UAH";
   params_json["operation"]["incomeAccount"]["id"] = incomeAccountId;
 
+  //
+  var params_result_json = {};
+  params_result_json["operations"] = [params_json];
+
   // url
   var url = "https://taxer.ua/api/finances/operation/create";
-  var response = doTaxerRequest(url, params_json, user);
+  var response = doTaxerRequest(url, params_result_json, user);
 
   // return response
   return response;
