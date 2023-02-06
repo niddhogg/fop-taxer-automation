@@ -536,10 +536,6 @@ function taxerImportData() {
   
   for (var i = start_row ; i < last_row; i++) {
     var index = i;
-    if (ordering == "new_first") {
-      index = last_row - i + 1;
-      //Logger.log("index: " + index);
-    }
     
     var raw = values[index];
     if (raw == null) {
@@ -615,7 +611,7 @@ function taxerImportData() {
         var found = false;
       
         income_indicators.forEach(function(entry) {
-            Logger.log(entry);
+            //Logger.log(entry);
             if (comment_lower.indexOf(entry) != -1) {
               found = true;
             }
@@ -641,7 +637,7 @@ function taxerImportData() {
 
       } else {
         //
-        Logger.log(comment);
+        //Logger.log(comment);
 
         // it may be income transaction!
         var found = false;
@@ -758,8 +754,11 @@ function taxerImportData() {
     }
     
   }
-  
-  //log(import_ops);
+
+  // reverse transactions
+  if (ordering == "new_first") {
+    import_ops.reverse();
+  }
   
   // ################################################################################
   
@@ -775,7 +774,6 @@ function taxerImportData() {
       for (var j = 0; j < operations.length; j++) {
         var taxer_op = operations[j];
         if (taxer_op.enabled) {
-        
           // compare operations...
           var same = true;
           
@@ -799,6 +797,9 @@ function taxerImportData() {
           if (same) {
             taxer_op.enabled = false;
             import_op.enabled = false;
+
+            // break was missing here
+            break;
           }
           
           //
@@ -809,7 +810,7 @@ function taxerImportData() {
   }
   
   // okay now we have enabled and disabled transactions...
-  log("outputting import ops");
+  //log("outputting import ops");
   var transactions_to_add = 0;
   
   for (var i = 0; i < import_ops.length; i++) {
@@ -873,7 +874,7 @@ function taxerImportData() {
   // clear import...
   var dest = ss.getSheetByName("Import");
   var range = dest.getDataRange();
-  range.clearContent();
+  //range.clearContent();
 
 
   //
@@ -895,7 +896,7 @@ function taxerImportData() {
     }
   }
 
-  Logger.log(text);
+  //Logger.log(text);
   
   // show result
   if (transactions_to_add > 0) {
