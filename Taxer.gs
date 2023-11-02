@@ -199,20 +199,33 @@ function taxerGetOperations(user, bank) {
 function taxerGetOperationsPagination(user, page, operations, bank) {
   // get user id
   var id = CacheService.getUserCache().get('taxer_auth_id_' + user);
+
+  // it is now get instead of post request?
   
   // params...
   var params_json = {};
   params_json["userId"] = parseInt(id);
   params_json["pageNumber"] = page;
   params_json["filters"] = [];
+  params_json["recordsOnPage"] = 15;
 
   var sorting = {};
   sorting["date"] = "ASC";
   params_json["sorting"] = sorting;
   
-  var url = "https://taxer.ua/api/finances/operation/load?lang=uk"
-  var response = doTaxerRequest(url, params_json, user);
+  // POST way
+  //var url = "https://taxer.ua/api/finances/operation/load?lang=uk"
+  //var response = doTaxerRequest(url, params_json, user);
   
+  // GET way (new)
+  var url = "https://taxer.ua/api/finances/operation/load?lang=uk&params=" + encodeURIComponent(JSON.stringify(params_json));
+  var response = doTaxerRequestGET(url, user);
+
+  // https://taxer.ua/api/finances/operation/load?lang=uk&params=%7B%22filters%22%3A%7B%7D%2C%22sorting%22%3A%7B%22date%22%3A%22DESC%22%7D%2C%22pageNumber%22%3A1%2C%22recordsOnPage%22%3A15%2C%22userId%22%3A105884%7D
+
+  // load?lang=uk&params={"filters":{},"sorting":{"date":"DESC"},"pageNumber":1,"recordsOnPage":15,"userId":105884}
+
+
   // result object
   var obj = JSON.parse(response);
   
@@ -278,7 +291,7 @@ function taxerGetOperationsPagination(user, page, operations, bank) {
     
   }
 
-  //Logger.log(obj);
+  Logger.log(obj);
   
   // move on with next pages if any
   var total_pages = obj.paginator.totalPages;
@@ -290,7 +303,7 @@ function taxerGetOperationsPagination(user, page, operations, bank) {
   
 }
 
-// generic taxer request function
+// generic taxer request function POST
 function doTaxerRequest(url, params_json, user) {
   // form up options
   var header = {'Cookie': CacheService.getUserCache().get('taxer_auth_' + user),
@@ -308,10 +321,31 @@ function doTaxerRequest(url, params_json, user) {
   return response;
 }
 
+// generic taxer request function GET
+function doTaxerRequestGET(url, user) {
+  // form up options
+  var header = {'Cookie': CacheService.getUserCache().get('taxer_auth_' + user),
+                "Content-Type": "application/x-www-form-urlencoded"};
+  
+  var options = {"headers":header,
+                 "method" : "GET", 
+                 //"payload" : JSON.stringify(params_json),
+                 "muteHttpExceptions": true };
+  
+  // get reponse
+  var response = UrlFetchApp.fetch(url, options);
+  
+  // return
+  return response;
+}
+
 // creates finance account for user
 function taxerCreateFinanceAccount(currency, user) {
   // get user id
   var id = CacheService.getUserCache().get('taxer_auth_id_' + user);
+
+  //
+  Logger.log("Creating currency account " + currency);
   
   // params...
   var params_json = {};
@@ -360,9 +394,12 @@ function taxerImportData() {
   params_json["pageNumber"] = 1;
   params_json["filters"] = {};
   
-  // load accounts
-  var url = "https://taxer.ua/api/finances/account/load?lang=u";
-  var response = doTaxerRequest(url, params_json, user);
+  // load accounts (POST)
+  //var url = "https://taxer.ua/api/finances/account/load?lang=uk";
+  //var response = doTaxerRequest(url, params_json, user);
+
+  var url = "https://taxer.ua/api/finances/account/load?lang=uk&params=" + encodeURIComponent(JSON.stringify(params_json));
+  var response = doTaxerRequestGET(url, user);
   
   var obj = JSON.parse(response);
   //log(JSON.stringify(obj.accounts, null, "\t"))
@@ -665,6 +702,8 @@ function taxerImportData() {
           try {
             data = getDataFromString(comment, exchange_pattern);
           } catch (error) {
+              Logger.log(i);
+              Logger.log(comment);
 
               // could not find income op...
               Logger.log("fail");
@@ -869,7 +908,6 @@ function taxerImportData() {
       
     }
   }
-  
   
   // clear import...
   var dest = ss.getSheetByName("Import");
